@@ -1,0 +1,136 @@
+---
+title: "Distribución Hipergeométrica"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+
+Desarrollar como en la demás distribuciones, incluyendo la función de probabilidad, gráficas considerando el cambio en los parámetros de la distribución. Características de la distribución (media y varianza). Un ejemplo con valores simulados y la verificación del teorema central del límite. Tomar como referencia principal el libro Introducción a la Probabilidad de Luis Rincón, páginas 243-247.
+
+
+```{r}
+#|code-fold: TRUE
+
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+library(tidyr)
+```
+
+La **distribución hipergeométrica** modela el número de éxitos al extraer una muestra **sin reemplazo** de una población finita que contiene dos tipos de elementos. Es la contraparte de la binomial cuando las extracciones no son independientes, y es fundamental en control de calidad, muestreo y auditoría.
+
+
+Supongamos una población de $N$ elementos, de los cuales $K$ son de interés (éxitos) y $N-K$ no lo son. Se extrae una muestra de tamaño $n$ sin reemplazo. Sea $X$ el número de elementos de interés en la muestra. Entonces $X$ tiene distribución hipergeométrica con parámetros $(N, K, n)$, y su función de probabilidad es:
+
+$$f(x)=\frac{\binom{K}{x}\binom{N-K}{n-x}}{\binom{N}{n}} \quad \text{para } \max(0,\, n-N+K) \leq x \leq \min(n,\, K)$$
+
+y cero en otro caso. Escribimos $X \sim \text{hipergeo}(N, K, n)$, con $N, K, n$ enteros tales que $0 \leq K \leq N$ y $1 \leq n \leq N$.
+
+
+
+**Interpretación:** el numerador cuenta las muestras con exactamente $x$ elementos de interés, que se eligen de $\binom{K}{x}$ formas, y $n-x$ elementos sin interés, que se eligen de $\binom{N-K}{n-x}$ formas. El denominador cuenta todas las muestras posibles de tamaño $n$.
+
+**Normalización:** por la identidad de Vandermonde,
+
+$$\sum_{x} \binom{K}{x}\binom{N-K}{n-x} = \binom{N}{n} \quad \Longrightarrow \quad \sum_{x} f(x) = 1$$
+
+## Características de la Distribución Hipergeométrica
+
+Si $X \sim \text{hipergeo}(N, K, n)$, entonces:
+
+-   **Esperanza:** $E(X) = n\,\dfrac{K}{N}$
+
+-   **Varianza:** $\text{Var}(X) = n\,\dfrac{K}{N}\left(1-\dfrac{K}{N}\right)\dfrac{N-n}{N-1}$
+
+El factor $\dfrac{N-n}{N-1}$ se llama **factor de corrección por población finita**. Al compararlo con la binomial$(n, p)$ con $p = K/N$, la media es la misma pero la varianza hipergeométrica es **menor**, porque al muestrear sin reemplazo cada extracción aporta más información. Cuando $N$ es grande respecto a $n$, el factor tiende a 1 y la hipergeométrica se aproxima a la binomial.
+
+**Esperanza:** como $x\binom{K}{x} = K\binom{K-1}{x-1}$,
+
+$$E(X)=\sum_x x\,\frac{\binom{K}{x}\binom{N-K}{n-x}}{\binom{N}{n}}=\frac{K}{\binom{N}{n}}\sum_x \binom{K-1}{x-1}\binom{N-K}{n-x}=\frac{K\binom{N-1}{n-1}}{\binom{N}{n}}=\frac{nK}{N}$$
+
+**Varianza:** de forma análoga, $E[X(X-1)] = \dfrac{n(n-1)K(K-1)}{N(N-1)}$, y con $\text{Var}(X) = E[X(X-1)] + E(X) - [E(X)]^2$ se obtiene la expresión anterior.
+
+## Ejemplo
+
+Un lote tiene $N = 50$ piezas, de las cuales $K = 8$ son defectuosas. Se inspecciona una muestra de $n = 10$ piezas sin reemplazo. Sea $X$ el número de piezas defectuosas en la muestra.
+
+
+```{r}
+#| code-fold: true
+
+# Parámetros
+N_lote <- 50    # población
+K_def <- 8      # defectuosas
+n_mue <- 10     # tamaño de muestra
+
+# a) P(X = 2)
+prob_2 <- dhyper(2, K_def, N_lote - K_def, n_mue)
+cat("a) P(X = 2) =", round(prob_2, 4), "\n")
+
+# Verificación manual
+prob_2_manual <- choose(K_def, 2) * choose(N_lote - K_def, n_mue - 2) / choose(N_lote, n_mue)
+cat("   Verificación manual:", round(prob_2_manual, 4), "\n")
+
+# b) P(X >= 1): al menos una defectuosa
+prob_al_menos_1 <- 1 - phyper(0, K_def, N_lote - K_def, n_mue)
+cat("b) P(X >= 1) =", round(prob_al_menos_1, 4), "\n")
+
+# c) P(X <= 2)
+prob_max_2 <- phyper(2, K_def, N_lote - K_def, n_mue)
+cat("c) P(X <= 2) =", round(prob_max_2, 4), "\n")
+
+# Parámetros estadísticos
+media_hip <- n_mue * K_def / N_lote
+var_hip <- n_mue * (K_def / N_lote) * (1 - K_def / N_lote) * (N_lote - n_mue) / (N_lote - 1)
+desv_hip <- sqrt(var_hip)
+
+cat("\nParámetros estadísticos:\n")
+cat("Esperanza:", media_hip, "\n")
+cat("Varianza:", round(var_hip, 4), "\n")
+cat("Desviación estándar:", round(desv_hip, 4), "\n")
+
+# Tabla de probabilidades
+x_vals <- 0:min(K_def, n_mue)
+tabla_hip <- data.frame(
+  x = x_vals,
+  Probabilidad = dhyper(x_vals, K_def, N_lote - K_def, n_mue),
+  Acumulada = phyper(x_vals, K_def, N_lote - K_def, n_mue)
+)
+
+kable(tabla_hip, digits = 4,
+      caption = "Distribución hipergeométrica (N = 50, K = 8, n = 10)",
+      col.names = c("x", "P(X = x)", "P(X ≤ x)")) %>%
+  kable_styling(bootstrap_options = "striped")
+```
+
+```{r}
+#| code-fold: true
+
+
+ggplot(tabla_hip, aes(x = x, y = Probabilidad)) +
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.8) +
+  geom_text(aes(label = ifelse(Probabilidad > 0.001, round(Probabilidad, 4), "")),
+            vjust = -0.5, size = 3) +
+  geom_vline(xintercept = media_hip, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = media_hip + 1.2, y = max(tabla_hip$Probabilidad) * 0.9,
+           label = paste("Media =", media_hip), color = "red") +
+  scale_x_continuous(breaks = x_vals) +
+  labs(title = paste("Distribución Hipergeométrica(", N_lote, ",", K_def, ",", n_mue, ")"),
+       x = "Número de piezas defectuosas en la muestra",
+       y = "Probabilidad") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+
