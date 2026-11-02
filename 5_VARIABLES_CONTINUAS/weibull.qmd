@@ -1,0 +1,278 @@
+---
+title: "Distribución Weibull"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(plotly)
+library(scales)
+library(viridis)
+
+```
+
+Desarrollar como en la demás distribuciones, incluyendo la función de probabilidad y la función de distribución, gráficas considerando el cambio en los parámetros de la distribución. Características de la distribución (media, varianza, moda, cv). Un ejemplo con valores simulados y la verificación del teorema central del límite. Tomar como referencia principal el libro Introducción a la Probabilidad de Luis Rincón, páginas 278-281.
+
+
+La **distribución Weibull** es una de las distribuciones continuas más utilizadas en **análisis de confiabilidad** y **tiempos de vida**. Su importancia radica en su flexibilidad: según el valor de su parámetro de forma, puede modelar tasas de falla decrecientes, constantes o crecientes, y generaliza a la distribución exponencial.
+
+La distribución Weibull es fundamental para modelar:
+
+- **Tiempo de vida** de componentes mecánicos y electrónicos
+- **Tiempo hasta la falla** en sistemas con desgaste o con fallas tempranas
+- **Análisis de supervivencia** con tasas de riesgo que cambian en el tiempo
+- **Velocidad del viento** en estudios de energía eólica
+- **Tiempos de procesamiento** y de espera en sistemas de servicio
+
+::: {#def-dist_weibull}
+Una variable aleatoria continua $X$ sigue una **distribución Weibull** si tiene función de densidad de probabilidad:
+
+$$f(x) = \alpha \lambda (\lambda x)^{\alpha-1} e^{-(\lambda x)^{\alpha}} = \alpha \lambda^{\alpha} x^{\alpha-1} e^{-(\lambda x)^{\alpha}}, \quad x > 0$$
+
+donde:
+
+- $\alpha > 0$ es el **parámetro de forma** (shape parameter)
+- $\lambda > 0$ es el **parámetro de tasa** (rate parameter), y $1/\lambda$ es el parámetro de escala
+
+A una variable aleatoria con distribución Weibull la denotamos como $X \sim \text{Weibull}(\alpha, \lambda)$
+:::
+
+------------------------------------------------------------------------
+
+**Nota sobre R.** La función `dweibull(x, shape, scale)` usa el parámetro de **escala**, por lo que en todo el documento se usa `shape = α` y `scale = 1/λ`.
+
+**Verificación de que $f$ es una densidad.** Es no negativa, y con el cambio de variable $u = (\lambda x)^{\alpha}$, de modo que $du = \alpha \lambda^{\alpha} x^{\alpha-1}\,dx$:
+
+$$\int_0^{\infty} \alpha \lambda^{\alpha} x^{\alpha-1} e^{-(\lambda x)^{\alpha}}\,dx = \int_0^{\infty} e^{-u}\,du = 1$$
+
+### Casos especiales importantes
+
+**1. Distribución exponencial**
+
+Cuando $\alpha = 1$: $$\text{Weibull}(1, \lambda) = \text{exp}(\lambda)$$
+
+**2. Distribución Rayleigh**
+
+Cuando $\alpha = 2$ se obtiene la distribución Rayleigh, con parámetro de escala $1/\lambda$.
+
+**3. Aproximación a la normal**
+
+Cuando $\alpha \approx 3.6$, la distribución es casi simétrica y se parece a una normal.
+
+### Interpretación de los parámetros
+
+**Parámetro de forma (**$\alpha$)
+
+- $\alpha < 1$: Densidad decreciente con $f(x) \to \infty$ cuando $x \to 0^+$ (tasa de falla decreciente)
+- $\alpha = 1$: Distribución exponencial (tasa de falla constante)
+- $\alpha > 1$: Distribución unimodal con $f(0) = 0$ (tasa de falla creciente)
+- $\alpha$ grande: Distribución concentrada y casi simétrica
+
+**Parámetro de tasa (**$\lambda$)
+
+- $\lambda$ pequeño: Distribución más dispersa, valores más grandes probables
+- $\lambda$ grande: Distribución más concentrada cerca del origen
+- **Efecto de escala**: $\lambda$ actúa como un factor de escala inverso, y $1/\lambda$ es la "vida característica"
+
+```{r}
+#| label: interpretacion-parametro-alpha
+
+# Visualización del efecto de los parámetros
+x_seq <- seq(0.01, 3, length.out = 500)
+
+# Efecto del parámetro α (forma)
+alpha_vals <- c(0.5, 1, 1.5, 3, 5)
+lambda_fijo <- 1
+
+df_alpha <- data.frame()
+for (a in alpha_vals) {
+  temp <- data.frame(
+    x = x_seq,
+    y = dweibull(x_seq, shape = a, scale = 1/lambda_fijo),
+    parametro = paste("α =", a)
+  )
+  df_alpha <- rbind(df_alpha, temp)
+}
+
+# Crear gráfico
+alpha_effect <- ggplot(df_alpha, aes(x = x, y = y, color = parametro)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Efecto del parámetro α en la distribución Weibull",
+       subtitle = paste("λ =", lambda_fijo),
+       x = "x", y = "f(x)",
+       color = "Parámetro") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlim(0, 3) +
+  ylim(0, 2)
+
+ggplotly(alpha_effect)
+```
+
+```{r}
+#| label: interpretacion-parametro-lambda
+
+# Efecto del parámetro λ (tasa)
+x_seq2 <- seq(0.01, 5, length.out = 500)
+alpha_fijo <- 2
+lambda_vals <- c(0.5, 1, 1.5, 2, 3)
+
+df_lambda <- data.frame()
+for (b in lambda_vals) {
+  temp <- data.frame(
+    x = x_seq2,
+    y = dweibull(x_seq2, shape = alpha_fijo, scale = 1/b),
+    parametro = paste("λ =", b)
+  )
+  df_lambda <- rbind(df_lambda, temp)
+}
+
+# Crear gráfico
+lambda_effect <- ggplot(df_lambda, aes(x = x, y = y, color = parametro)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Efecto del parámetro λ en la distribución Weibull",
+       subtitle = paste("α =", alpha_fijo),
+       x = "x", y = "f(x)",
+       color = "Parámetro") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlim(0, 5)
+
+ggplotly(lambda_effect)
+```
+
+## Propiedades de la función de densidad de probabilidad
+
+La función de densidad de probabilidad de la distribución Weibull puede escribirse como:
+
+$$f(x) = \alpha \lambda^{\alpha} x^{\alpha-1} e^{-(\lambda x)^{\alpha}}, \quad x > 0$$
+
+La cual puede descomponerse en tres componentes principales:
+
+1.  **Factor de normalización**: $\alpha \lambda^{\alpha}$
+2.  **Componente de potencia**: $x^{\alpha-1}$
+3.  **Componente exponencial**: $e^{-(\lambda x)^{\alpha}}$
+
+**Análisis del comportamiento en x = 0**
+
+El comportamiento de $f(x)$ cuando $x \to 0^+$ depende del parámetro de forma $\alpha$:
+
+- **Si α \> 1**: $\lim_{x \to 0} f(x) = 0$
+- **Si α = 1**: $\lim_{x \to 0} f(x) = \lambda$
+- **Si 0 \< α \< 1**: $\lim_{x \to 0} f(x) = +\infty$
+
+**Moda de la distribución**
+
+Derivando $\ln f(x) = \ln(\alpha\lambda^{\alpha}) + (\alpha-1)\ln x - (\lambda x)^{\alpha}$ e igualando a cero:
+
+$$\frac{\alpha-1}{x} - \alpha\lambda^{\alpha}x^{\alpha-1} = 0 \quad \Longrightarrow \quad x^{\alpha} = \frac{\alpha-1}{\alpha\lambda^{\alpha}}$$
+
+- **Si α \> 1**: Moda = $\dfrac{1}{\lambda}\left(\dfrac{\alpha-1}{\alpha}\right)^{1/\alpha}$
+- **Si α ≤ 1**: Moda = 0
+
+**Visualización detallada del comportamiento**
+
+```{r}
+#| label: visualizacion-comportamiento
+#| warning: false
+
+lambda_fijo <- 1.5
+
+# Crear gráfico mostrando diferentes comportamientos
+x_detalle <- seq(0.01, 2.5, length.out = 1000)
+alpha_casos <- c(0.5, 1, 2, 4)
+
+df_casos <- data.frame()
+for (i in seq_along(alpha_casos)) {
+  alpha_i <- alpha_casos[i]
+  temp <- data.frame(
+    x = x_detalle,
+    y = dweibull(x_detalle, shape = alpha_i, scale = 1/lambda_fijo),
+    caso = paste("α =", alpha_i)
+  )
+  df_casos <- rbind(df_casos, temp)
+}
+
+# Agregar puntos de las modas
+moda_2 <- (1/lambda_fijo) * ((2-1)/2)^(1/2)
+moda_4 <- (1/lambda_fijo) * ((4-1)/4)^(1/4)
+
+df_modas <- data.frame(
+  x = c(NA, 0, moda_2, moda_4),
+  y = c(NA, dweibull(0, 1, 1/lambda_fijo), dweibull(moda_2, 2, 1/lambda_fijo), dweibull(moda_4, 4, 1/lambda_fijo)),
+  caso = paste("α =", alpha_casos)
+) %>% filter(!is.na(x) & is.finite(y))
+
+p1 <- ggplot(df_casos, aes(x = x, y = y, color = caso)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(data = df_modas, aes(x = x, y = y), size = 3, color = "black") +
+  geom_point(data = df_modas, aes(x = x, y = y, color = caso), size = 2) +
+  labs(title = "Comportamiento de la PDF Weibull según α",
+       subtitle = paste("λ =", lambda_fijo, "| Puntos: modas"),
+       x = "x", y = "f(x)",
+       color = "Parámetro α") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  guides(color = guide_legend(position = "inside")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5), 
+        legend.position.inside = c(0.8, 0.7)) +
+  xlim(0, 2.5) +
+  ylim(0, 2.5)
+
+# Gráfico de zoom cerca del origen para α < 1
+x_zoom <- seq(0.001, 1, length.out = 1000)
+df_zoom <- data.frame(
+  x = x_zoom,
+  y = dweibull(x_zoom, shape = 0.5, scale = 1/lambda_fijo),
+  caso = "α = 0.5"
+)
+
+p2 <- ggplot(df_zoom, aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "red") +
+  labs(title = "Comportamiento cerca del origen (α = 0.5)",
+       x = "x", y = "f(x)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlim(0, 1) +
+  ylim(0, 5)
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+<br>
+
+**Función de riesgo (tasa de falla)**
+
+Una propiedad que explica el uso de la Weibull en confiabilidad es su tasa de falla:
+
+$$h(x) = \frac{f(x)}{1 - F(x)} = \alpha \lambda^{\alpha} x^{\alpha-1}$$
+
+- Si $\alpha < 1$: $h(x)$ es **decreciente** (fallas tempranas)
+- Si $\alpha = 1$: $h(x) = \lambda$ es **constante** (sin desgaste, propiedad de pérdida de memoria)
+- Si $\alpha > 1$: $h(x)$ es **creciente** (desgaste)
+
+**Comportamiento asintótico**
+
+Cuando $x \to \infty$, $f(x) \to 0$ con decaimiento de tipo $e^{-(\lambda x)^{\alpha}}$, más rápido que exponencial si $\alpha > 1$ y más lento si $\alpha < 1$.
+
+
